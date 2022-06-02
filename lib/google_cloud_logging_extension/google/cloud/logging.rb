@@ -3,6 +3,31 @@
 module Google
   module Cloud
     module Logging
+      module Convert
+        class << self
+          # @param [Exception] exception
+          def exception_to_hash(exception)
+            {
+              class: exception.class.name,
+              message: exception.message,
+              backtrace: exception.backtrace,
+              cause: exception.cause.is_a?(Exception) ? exception_to_hash(exception.cause) : exception.cause
+            }
+          end
+
+          alias object_to_value_default object_to_value
+          def object_to_value(obj)
+            if obj.is_a?(Exception)
+              return Google::Protobuf::Value.new(struct_value: hash_to_struct(exception_to_hash(obj)))
+            end
+            return Google::Protobuf::Value.new(struct_value: hash_to_struct(obj.to_hash)) if obj.respond_to?(:to_hash)
+            return Google::Protobuf::Value.new(list_value: array_to_list(obj.to_ary)) if obj.respond_to?(:to_ary)
+
+            object_to_value_default(obj)
+          end
+        end
+      end
+
       def self.create(log_name, resource_type = 'gce_project', **labels)
         logging = Google::Cloud::Logging.new
         writer = logging.async_writer(max_queue_size: 1000)
@@ -17,20 +42,10 @@ module Google
       end
 
       class Entry
-        # @param [Exception] exception
-        def create_exception_payload(exception)
-          {
-            class: exception.class.name,
-            message: exception.message,
-            backtrace: exception.backtrace,
-            cause: exception.cause.is_a?(Exception) ? create_exception_payload(exception.cause) : exception
-          }
-        end
-
         def payload=(payload)
           @payload = case payload
                      when Exception
-                       create_exception_payload(payload)
+                       Google::Cloud::Logging::Convert.exception_to_hash(payload)
                      else
                        payload
                      end
