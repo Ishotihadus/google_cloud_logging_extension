@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require 'google/cloud/logging'
+
 module Google
   module Cloud
     module Logging
