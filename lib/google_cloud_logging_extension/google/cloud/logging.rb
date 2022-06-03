@@ -8,13 +8,16 @@ module Google
       module Convert
         class << self
           # @param [Exception] exception
-          def exception_to_hash(exception)
-            {
+          def exception_to_hash(exception, root: false)
+            hash = {
               class: exception.class.name,
-              message: exception.message,
+              message: exception.full_message(highlight: false),
+              summary: exception.message,
               backtrace: exception.backtrace,
               cause: exception.cause.is_a?(Exception) ? exception_to_hash(exception.cause) : exception.cause
             }
+            hash['@type'] = 'type.googleapis.com/google.devtools.clouderrorreporting.v1beta1.ReportedErrorEvent' if root
+            hash
           end
 
           alias object_to_value_default object_to_value
@@ -47,7 +50,7 @@ module Google
         def payload=(payload)
           @payload = case payload
                      when Exception
-                       Google::Cloud::Logging::Convert.exception_to_hash(payload)
+                       Google::Cloud::Logging::Convert.exception_to_hash(payload, root: true)
                      else
                        payload
                      end
