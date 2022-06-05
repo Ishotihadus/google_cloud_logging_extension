@@ -41,9 +41,41 @@ module Google
           level = labels[:level]
           labels.delete(:level)
         end
+        if labels.key?(:redirects)
+          redirects = labels[:redirects]
+          labels.delete(:redirects)
+        end
         logger = Google::Cloud::Logging::Logger.new(writer, log_name, resource, labels)
         logger.level = level if level
+
+        if redirects
+          redirects = [redirects] unless redirects.is_a?(Array)
+          redirects.compact!
+
+          redirects.map! do |e|
+            case e
+            when :stdout
+              ::Logger.new($stdout, progname: labels[:module] || log_name, level: logger.level)
+            when :stderr
+              ::Logger.new($stderr, progname: labels[:module] || log_name, level: logger.level)
+            else
+              e
+            end
+          end
+
+          logger.instance_variable_set(:@redirects, redirects)
+        end
+
         logger
+      end
+
+      class Logger
+        alias add_default add
+        def add(severity, message = nil, progname = nil)
+          derived_severity = derive_severity(severity) || ::Logger::UNKNOWN
+          @redirects&.each {|e| e.add(derived_severity, message, progname)}
+          add_default(severity, message, progname)
+        end
       end
 
       class Entry
