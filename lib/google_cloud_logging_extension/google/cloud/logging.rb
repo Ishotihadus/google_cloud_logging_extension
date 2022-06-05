@@ -33,6 +33,8 @@ module Google
         end
       end
 
+      DEFAULT_REDIRECTS = []
+
       def self.create(log_name, resource_type = 'gce_project', **labels)
         logging = Google::Cloud::Logging.new
         writer = logging.async_writer(max_queue_size: 1000)
@@ -44,14 +46,21 @@ module Google
         if labels.key?(:redirects)
           redirects = labels[:redirects]
           labels.delete(:redirects)
+          redirects = [redirects] unless redirects.is_a?(Array)
+          redirects.compact!
         end
+        unless DEFAULT_REDIRECTS.empty?
+          if redirects
+            redirects += DEFAULT_REDIRECTS
+          else
+            redirects = DEFAULT_REDIRECTS.dup
+          end
+        end
+
         logger = Google::Cloud::Logging::Logger.new(writer, log_name, resource, labels)
         logger.level = level if level
 
         if redirects
-          redirects = [redirects] unless redirects.is_a?(Array)
-          redirects.compact!
-
           redirects.map! do |e|
             case e
             when :stdout
